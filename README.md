@@ -1,28 +1,53 @@
-# LazyLoadingServices2
+# Overview
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 1.3.2.
+This project demonstrates how one could lazy load Services.
 
-## Development server
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
+## Problem
 
-## Code scaffolding
+Currently Angular supports lazy loaded of routes. But a service must be either in root NgModule or in route NgModule. If it is in root NgModule than the root NgModule is bloated. If it is in route NgModule than it can not persist state across route NgModule (which is often a requirement).
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
 
-## Build
+## Solution
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `-prod` flag for a production build.
+- Create a separate Service NgModule for each lazy loaded chunk which you need. The Service NgModule can have more than one service to inject. Usually a group of related services.
+- Export the symbols which you want available from the lazy loaded NgModule (explained in [code](https://github.com/mhevery/lazy-loading-services/blob/master/src/app/service/greet/exports.ts))
+- Create a `ModuleInjectorPromise` in the root NgModule pointing to the lazy loaded NgModule
+- In the route configuration use the resolver to resolve the `ModuleInjectorPromise` before loading the routing component.
+- In the route NgModule create forwarding providers to the lazy loaded `ModuleInjectorPromise`
 
-## Running unit tests
+```
+                                  +------------------------------------+
+                                  | NgModule: <root>                   |
+                                  | Providers:                         |
+                                  |    - GreeterModuleInjectorPromise  |
+                                  +------------------------------------+
+                                         ^                     ^
+                                         |                     |
+                                         |                     |
++---------------------------------------------------+      +-------------------------+
+| NgModule: MyRouteModule                           |      | NgModule: GreeterModule |
+| Providers:                                        |      | Providers:              |
+|   - Greeter => greeterModuleInjector.get(Greeter) |      |   - Greeter             |
++---------------------------------------------------+      +-------------------------+
+```
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+## Working Example
 
-## Running end-to-end tests
+This repo contains a working example of the implementation. Here is the terminology.
 
-Run `ng e2e` to execute the end-to-end tests via [Protractor](http://www.protractortest.org/).
-Before running the tests make sure you are serving the app via `ng serve`.
+- `Greeter`: A service which needs to be lazy loaded and be a singleton across multiple lazy routes.
+- `GreeterModule`: An NgModule which declares the service (along with its own dependencies).
+- `WelcomeModule`: A lazy loaded route module.
+- `WelcomeComponent`: A lazy loaded router component which has a dependency on lazy loaded `Greeter` service.
+- `GreeterModuleInjectorPromise`: A factory which creates `Promise<GreeterModule.Injector>` by lazy loading the `GreeterModule`
 
-## Further help
+See the source code for further explanation of what is going on.
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI README](https://github.com/angular/angular-cli/blob/master/README.md).
+## Running the Example
+
+```
+ng install @angular/cli -g 
+ng install
+ng serve
+```
